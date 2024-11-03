@@ -16,11 +16,7 @@ module.exports = {
         unique: true
       },
       password: Sequelize.DataTypes.STRING(128),
-      balances: {
-        type: Sequelize.DataTypes.BIGINT.UNSIGNED,
-        allowNull: false,
-        defaultValue: 0,
-      },
+      api_token: Sequelize.DataTypes.STRING(128),
       active: {
         type: Sequelize.DataTypes.BOOLEAN,
         defaultValue: true,

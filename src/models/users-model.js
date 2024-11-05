@@ -1,35 +1,30 @@
-import { Sequelize, Model } from "sequelize";
-import connection from "../application/database.js";
+import { DataTypes } from "sequelize";
+import Connection from "../application/database.js";
 
-class UsersModel extends Model {}
-
-UsersModel.init({
+export const UsersModel = Connection.define('users', {
     id: {
-        type: Sequelize.DataTypes.CHAR(36),
+        type: DataTypes.CHAR(36),
         primaryKey: true,
         allowNull: false,
     },
     name: {
-        type: Sequelize.DataTypes.STRING(100),
+        type: DataTypes.STRING(100),
         allowNull: true
     },
     email: {
-        type: Sequelize.DataTypes.STRING(100),
+        type: DataTypes.STRING(100),
         allowNull: false,
         unique: true
     },
-    password: Sequelize.DataTypes.STRING(128),
-    api_token: Sequelize.DataTypes.STRING(128),
+    password: DataTypes.STRING(128),
+    api_token: DataTypes.STRING(128),
     active: {
-        type: Sequelize.DataTypes.BOOLEAN,
+        type: DataTypes.BOOLEAN,
         defaultValue: true,
         allowNull: false
     },
-    createdAt: Sequelize.DataTypes.DATE,
-    updatedAt: Sequelize.DataTypes.DATE
+    createdAt: DataTypes.DATE,
+    updatedAt: DataTypes.DATE
 }, {
-    connection,
-    modelName: 'Users',
+    tableName: 'users'
 });
-
-export default UsersModel;

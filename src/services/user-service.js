@@ -1,72 +1,88 @@
-import { ValidationRequest } from "../validation/validation.js";
-import { UsersModel } from "../models/users-model.js";
-import ResponseError from "../exceptions/response-error.js";
+import { Buffer } from 'node:buffer';
 import bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
+import 'dotenv/config';
+import Connection from "../application/database.js";
+import ResponseError from "../exceptions/response-error.js";
+import { ValidationRequest } from "../validation/validation.js";
+import UsersModel from "../models/users-model.js";
 
 export const UserService = {};
 
 UserService.register = async(request) => {
-    const requestBody = request.body;
-    const registerRequest = ValidationRequest.handle(ValidationRequest.userRequest.register, requestBody);
+    const registerRequest = ValidationRequest.handle(ValidationRequest.userRequest.register, request.body);
+    const isEmailUnique = await UsersModel.isEmailUnique(registerRequest.email);
     
-    const isEmailUnique = await UsersModel.count({
-        where: {
+    if( isEmailUnique === true ) throw new ResponseError(400, `Email ${registerRequest.email} sudah terdaftar`);
+    
+    const hashPassword = await bcrypt.hash(registerRequest.password, await bcrypt.genSalt(12));
+    const startTransaction = await Connection.transaction();
+    
+    try {
+        const users = await UsersModel.create({
+            id: uuidv4(),
+            name: registerRequest.name,
             email: registerRequest.email,
-        }
-    });
+            password: hashPassword,
+        }, {
+            transaction: startTransaction
+        });
 
-    if( isEmailUnique == 1 ) throw new ResponseError(400, `Email ${registerRequest.email} sudah terdaftar`);
-
-    const hashPassword = await bcrypt.hash(registerRequest.password, await bcrypt.genSalt(10));
-    const users = await UsersModel.create({
-        id: uuidv4(),
-        name: registerRequest.name,
-        email: registerRequest.email,
-        password: hashPassword,
-    });
-
-    return {
-        data: users,
-        message: 'OK',
-    };
+        await startTransaction.commit();
+    
+        return {
+            data: users,
+            message: 'OK',
+        };
+    } catch (error) {
+        await startTransaction.rollback();
+        throw new ResponseError(500, 'Registrasi gagal!');
+    }
 }
 
 UserService.login = async(request) => {
-    const requestBody = request.body;
-    const loginRequest = ValidationRequest.handle(ValidationRequest.userRequest.login, requestBody);
+    const loginRequest = ValidationRequest.handle(ValidationRequest.userRequest.login, request.body);
+    const startTransaction = await Connection.transaction();
 
-    const result = await UsersModel.findOne({
-        attributes: [
-            'id','name','email'
-        ],
+    const result = await UsersModel.login(loginRequest.email, startTransaction);
+    if( result === null ) throw new ResponseError(401, `Email ${loginRequest.email} tidak ditemukan`);
+
+    const matchPassword = await bcrypt.compare(loginRequest.password, result.get('password'));
+    if( matchPassword === false ) throw new ResponseError(401, `Email atau password salah. Silakan coba lagi`);
+    
+    try {
+        const newToken = uuidv4();
+        const apiToken = Buffer.from(`${result.get('id')}:${newToken}`).toString('base64');
+
+        await UsersModel.updateApiToken(newToken, loginRequest.email, startTransaction);
+        
+        const response = {
+            data: {
+                token: apiToken,
+            },
+            message: 'OK',
+        };
+        
+        await startTransaction.commit();
+        return response;
+    } catch (error) {
+        await startTransaction.rollback();
+        throw error;
+    }
+}
+
+UserService.getProfile = async(request) => {
+    const users = await UsersModel.findOne({
+        attributes: ['id', 'name', 'email'],
         where: {
-            email: loginRequest.email
+            id: request.userId,
+            api_token: request.apiToken,
         }
     });
 
-    if( result === null ) throw new ResponseError(401, `Email ${loginRequest.email} tidak ditemukan`);
-
-    const token = uuidv4();
-
-    await UsersModel.update(
-        {
-            api_token: token,
-        },
-        {
-            where: {
-                email: loginRequest.email,
-            },
-        }
-    );
+    if( ! users ) throw new ResponseError(404, 'User not found');
 
     return {
-        data: {
-            id: result.dataValues.id,
-            name: result.dataValues.name,
-            email: result.dataValues.email,
-            token: token,
-        },
-        message: 'OK',
-    };   
+        data: users
+    }
 }

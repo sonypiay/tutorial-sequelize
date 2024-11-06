@@ -1,30 +1,89 @@
-import { DataTypes } from "sequelize";
+import { Sequelize, DataTypes, Model, Op } from "sequelize";
 import Connection from "../application/database.js";
 
-export const UsersModel = Connection.define('users', {
+class UsersModel extends Model {
+    static async findByEmail(email) {
+        return await this.findOne({
+            where: {
+                email: email
+            }
+        })
+    }
+
+    static async isEmailUnique(email, id = '') {
+        const whereCondition = {};
+
+        whereCondition.email = email;
+        
+        if( id ) {
+            whereCondition.id = { 
+                [Op.ne]: id 
+            };
+        }
+
+        const result = await this.count({
+            where: whereCondition
+        });
+
+        return result === 0 ? false : true;
+    }
+
+    static async login(email, transaction) {
+        return await this.findOne({
+            attributes: [
+                'id','name','email', 'password',
+            ],
+            where: {
+                email: email,
+                active: true
+            },
+            transaction: transaction
+        });
+    }
+
+    static async updateApiToken(token, email, transaction) {
+        return await this.update(
+            {
+                api_token: token,
+            },
+            {
+                where: {
+                    email: email,
+                },
+                transaction: transaction
+            }
+        );
+    }
+}
+
+UsersModel.init({
     id: {
-        type: DataTypes.CHAR(36),
+        type: Sequelize.DataTypes.CHAR(36),
         primaryKey: true,
         allowNull: false,
     },
     name: {
-        type: DataTypes.STRING(100),
+        type: Sequelize.DataTypes.STRING(100),
         allowNull: true
     },
     email: {
-        type: DataTypes.STRING(100),
+        type: Sequelize.DataTypes.STRING(100),
         allowNull: false,
         unique: true
     },
-    password: DataTypes.STRING(128),
-    api_token: DataTypes.STRING(128),
+    password: Sequelize.DataTypes.STRING(128),
+    api_token: Sequelize.DataTypes.STRING(128),
     active: {
-        type: DataTypes.BOOLEAN,
+        type: Sequelize.DataTypes.BOOLEAN,
         defaultValue: true,
         allowNull: false
     },
-    createdAt: DataTypes.DATE,
-    updatedAt: DataTypes.DATE
+    createdAt: Sequelize.DataTypes.DATE,
+    updatedAt: Sequelize.DataTypes.DATE
 }, {
-    tableName: 'users'
+    sequelize: Connection,
+    tableName: 'users',
+    modelName: 'Users'
 });
+
+export default UsersModel;

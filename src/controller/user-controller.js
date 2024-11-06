@@ -3,7 +3,7 @@ export const UserController = {};
 
 UserController.register = {
     path: '/api/auth/register',
-    method: async(request, response, next) => {
+    handler: async(request, response, next) => {
         try {
             const result = await UserService.register(request);
             response.status(200).json(result);
@@ -15,7 +15,7 @@ UserController.register = {
 
 UserController.login = {
     path: '/api/auth/login',
-    method: async(request, response, next) => {
+    handler: async(request, response, next) => {
         try {
             const result = await UserService.login(request);
             response.status(200).json(result);
@@ -23,4 +23,16 @@ UserController.login = {
             next(error);
         }
     }
-}
+};
+
+UserController.getProfile = {
+    path: '/api/users',
+    handler: async(request, response, next) => {
+        try {
+            const result = await UserService.getProfile(request);
+            response.status(200).json(result);
+        } catch (error) {
+            next(error);
+        }
+    }
+};
